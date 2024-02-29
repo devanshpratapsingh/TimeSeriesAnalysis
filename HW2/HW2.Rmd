@@ -1,0 +1,326 @@
+
+```{r}
+library(reprex)
+library(dplyr)
+library(fredr)
+library(ggplot2)
+library(forecast)
+library(tseries)
+library(urca)
+library(tidyverse)
+library(readxl)
+library(forecast)
+
+fredr_set_key("360481124fc765b815de2697f1bf8d62")
+
+icnsa <- fredr(series_id = "ICNSA") 
+
+icnsa$date <- as.Date(icnsa$date)
+ggplot(icnsa, aes(x = date, y = value)) + geom_line() + labs(title = "Insurance Claim Over Time",x = "Year",y = "Number")
+```
+```{r}
+str(icnsa)
+```
+
+
+```{r}
+# Filter the data within the range defined by the blue lines
+icnsa_filtered <- icnsa %>%
+  filter(date >= min(date) & date <= max(date), value >= lower_limit & value <= upper_limit)
+
+# Calculate mean and standard deviation for the filtered data
+mean_value_filtered <- mean(icnsa_filtered$value)
+sd_value_filtered <- sd(icnsa_filtered$value)
+
+# Plot for line representing the mean value and blue lines for the lower and upper limits of the standard deviation
+ggplot(icnsa, aes(x = date, y = value)) + 
+  geom_line() +
+  geom_hline(yintercept = mean_value, linetype = "dashed", color = "red") +
+  geom_segment(aes(x = min(date), y = lower_limit, xend = max(date), yend = lower_limit), color = "blue") +
+  geom_segment(aes(x = min(date), y = upper_limit, xend = max(date), yend = upper_limit), color = "blue") +
+  geom_hline(yintercept = mean_value_filtered, linetype = "dashed", color = "green") +  # Add mean line for filtered data
+  labs(title = "Insurance Claim Over Time", x = "Year", y = "Number")
+
+
+
+```
+```{r}
+# Filter the data within the range defined by the blue lines
+icnsa_filtered <- icnsa %>%
+  filter(date >= min(date) & date <= max(date), value >= lower_limit & value <= upper_limit)
+
+# Mean and standard deviation for the filtered data
+mean_value_filtered <- mean(icnsa_filtered$value)
+sd_value_filtered <- sd(icnsa_filtered$value)
+
+print(paste("Mean value between the blue lines:", mean_value_filtered))
+
+```
+
+
+```{r}
+# All points above the higher limit of the standard deviation
+above_limit_points <- icnsa %>%
+  filter(value > upper_limit)
+
+# Print the points
+print(above_limit_points)
+```
+```{r}
+# Calculate Z-score
+icnsa <- icnsa %>%
+  mutate(z_score = abs(value - mean(value)) / sd(value))
+
+# Set threshold for anomaly detection (e.g., 3 standard deviations)
+threshold <- 3
+
+# Identify anomalies
+anomalies <- icnsa %>%
+  filter(z_score > threshold)
+
+# Print detected anomalies
+print(anomalies)
+
+```
+```{r}
+library(ggplot2)
+
+# Plot the data with anomalies highlighted
+ggplot(icnsa, aes(x = date, y = value)) + 
+  geom_line() +
+  geom_point(data = anomalies, aes(x = date, y = value), color = "red", size = 2) +
+  labs(title = "Insurance Claim Over Time", x = "Year", y = "Number")
+
+```
+
+```{r}
+start_date <- as.Date("2020-01-01")
+end_date <- as.Date("2021-01-01")
+# Filter the data for the specified range
+filtered_icnsa <- icnsa %>%
+  filter(date >= start_date & date <= end_date)
+
+# Plot the filtered data with the specified range on the x-axis
+ggplot(filtered_icnsa, aes(x = date, y = value)) + 
+  geom_line() +
+  labs(title = "Insurance Claim Over Time", x = "Date", y = "Number") +
+  scale_x_date(date_labels = "%b %Y")
+
+```
+```{r}
+start_date <- as.Date("2020-03-01")
+end_date <- as.Date("2021-12-30")
+# Filter the data for the specified range
+filtered_icnsa <- icnsa %>%
+  filter(date >= start_date & date <= end_date)
+
+# Plot the filtered data with the specified range on the x-axis
+ggplot(filtered_icnsa, aes(x = date, y = value)) + 
+  geom_line() +
+  labs(title = "Insurance Claim Over Time", x = "Date", y = "Number") +
+  scale_x_date(date_labels = "%b %Y") 
+
+```
+```{r}
+# Defining the range
+start_date_start <- as.Date("2020-02-01")
+end_date_start <- as.Date("2020-03-20")
+
+# Filter the data for the specified range
+filtered_icnsa <- icnsa %>%
+  filter(date >= start_date_start & date <= end_date_start)
+
+# Calculate the differences in value and date
+diff_value <- diff(filtered_icnsa$value)
+diff_date <- as.numeric(diff(filtered_icnsa$date))
+
+# Calculate the slopes
+slopes <- diff_value / diff_date
+
+# Find the index of the segment with the maximum slope
+max_slope_index <- which.max(slopes)
+
+# Get the corresponding start and end dates for the segment with the highest slope
+highest_slope_start_date <- filtered_icnsa$date[max_slope_index]
+highest_slope_end_date <- filtered_icnsa$date[max_slope_index + 1]
+
+# Plot the data with the specified range and slope highlighted
+ggplot(filtered_icnsa, aes(x = date, y = value)) + 
+  geom_line() +
+  geom_segment(aes(x = filtered_icnsa$date[max_slope_index], 
+                   y = filtered_icnsa$value[max_slope_index],
+                   xend = filtered_icnsa$date[max_slope_index + 1], 
+                   yend = filtered_icnsa$value[max_slope_index + 1]),
+               color = "red", size = 1) +
+  labs(title = "Insurance Claim Over Time", x = "Date", y = "Number")
+# Print the value of the x-axis where the slope starts
+print(paste("X-axis value where slope starts:", highest_slope_start_date))
+
+
+```
+#Start Date: 2020-03-07  
+
+```{r}
+# Define the start and end dates
+start_date_end <- as.Date("2021-01-01")
+end_date_end <- as.Date("2021-12-31")
+
+# Define the specific value (y-value)
+specific_value <- 349995  # Update this with your specific value
+
+# Filter the data for the specified date range
+filtered_data <- icnsa_filtered %>%
+  filter(date >= start_date_end & date <= end_date_end)
+
+
+# Plot the filtered data with a horizontal line at the specific value
+ggplot(filtered_data, aes(x = date, y = value)) +
+  geom_line() +
+  geom_hline(yintercept = specific_value, linetype = "dashed", color = "green") +
+  labs(title = "Data with Horizontal Line", x = "Date", y = "Value")
+
+
+```
+#COVID End date:2021-07-31
+```{r}
+start_date <- as.Date("2020-03-07")
+end_date <- as.Date("2021-07-31")
+```
+
+
+```{r}
+# Plotting Covid period data with vertical lines to visulize the covid region
+plot(icnsa$date, icnsa$value, type = "l", 
+     main = "Claims Marking the Covid period",
+     xlab = "Year",
+     ylab = "Number")
+
+abline(v = as.numeric(start_date), col = "red", lty = 2)
+abline(v = as.numeric(end_date), col = "red", lty = 2)
+```
+
+
+
+3. Use a cubic spline methodology to impute new values for the Covid
+period you decided on in #2. Discuss the λ value chosen and the
+overall fit.
+
+```{r}
+# Define non-Covid and Covid periods
+non_covid_period <- icnsa[icnsa$date < start_date | icnsa$date > end_date, ]
+covid_period <- icnsa[icnsa$date >= start_date & icnsa$date <= end_date, ]
+
+# Initialize an empty list to store updated data frames for each spar value
+updated_data_list <- list()
+
+# Initialize an empty data frame to store lambda and MSE values
+lambda_mse_df <- data.frame(lambda = numeric(), MSE = numeric())
+
+# Implementing cubic spline with different values of spar
+lambda_values <- seq(0.1, 1.0, by = 0.1)
+for (lambda in lambda_values) {
+  # Fit cubic spline to non-Covid period with current spar value
+  spline_fit_covid <- smooth.spline(x = as.numeric(non_covid_period$date), y = non_covid_period$value, spar = lambda)
+  
+  # Impute new values using spline fit
+  imputed_values <- predict(spline_fit_covid, x = as.numeric(covid_period$date))$y
+  
+  # Updating Covid period data with imputed values
+  covid_period$value <- imputed_values
+  
+  # Combining non-Covid and imputed values
+  updated_icnsa_data <- rbind(non_covid_period, covid_period)
+  updated_icnsa_data <- updated_icnsa_data %>% arrange(date)
+  
+  # Store updated data frame in the list
+  updated_data_list[[as.character(lambda)]] <- updated_icnsa_data
+  
+  # Plotting updated data
+  plot(updated_icnsa_data$date, updated_icnsa_data$value, type = "l", col = "red", lwd = 2,
+       main = paste("Comparison of Time Series (spar =", lambda, ")"), xlab = "Year", ylab = "Number")
+  
+  # Add original data for comparison
+  lines(icnsa$date, icnsa$value, col = "blue", lwd = 2)
+  
+  # Add legend
+  legend("topright", legend = c("Updated", "Original"), col = c("red", "blue"), lty = 1, lwd = 2)
+}
+
+# Print the table of lambda and MSE values
+print(lambda_mse_df)
+
+
+```
+```{r}
+# Create an empty data frame to store results
+results <- data.frame(spar_value = numeric(length(spar_values)),
+                      RMSE = numeric(length(spar_values)))
+
+# Loop through spar values
+for (i in seq_along(spar_values)) {
+  # Fit the model
+  cubic_spline_fit <- smooth.spline(x = as.numeric(covid_data$date), y = covid_data$value, spar = spar_values[i])
+  
+  # Predict values
+  predicted_values <- predict(cubic_spline_fit, x = as.numeric(covid_data$date))$y
+  
+  # Calculate RMSE
+  rmse <- sqrt(mean((predicted_values - covid_data$value)^2))
+  
+  # Store results in data frame
+  results[i, "spar_value"] <- spar_values[i]
+  results[i, "RMSE"] <- rmse
+}
+
+# Print results in tabular format
+print(results)
+
+```
+
+
+Choosing λ = 0.3 achieves a delicate equilibrium between smoothing and preserving data trends. While lower values such as 0.1 minimize RMSE, they raise concerns of overfitting to noise. Conversely, higher values like 1.0 tend to oversmooth, sacrificing data nuances. λ = 0.3 effectively tackles overfitting while still capturing essential trends, making it a judicious choice for interpolation.
+
+```{r}
+# Fit cubic spline to non-Covid period with spar value of 0.3
+spline_fit_covid <- smooth.spline(x = as.numeric(non_covid_period$date), y = non_covid_period$value, spar = 0.3)
+
+# Impute new values using spline fit
+imputed_values <- predict(spline_fit_covid, x = as.numeric(covid_period$date))$y
+
+# Updating Covid period data with imputed values
+covid_period$value <- imputed_values
+
+# Combining non-Covid and imputed values
+updated_icnsa_data <- rbind(non_covid_period, covid_period)
+updated_icnsa_data <- updated_icnsa_data %>% arrange(date)
+
+# Plotting original and updated data together
+ggplot() +
+  geom_line(data = icnsa, aes(x = date, y = value), color = "red") +
+  geom_line(data = updated_icnsa_data, aes(x = date, y = value), color = "blue") +
+  labs(title = "Comparison of Original and Updated Data", x = "Year", y = "Number")
+
+```
+
+```{r}
+icnsa_ts <- ts(updated_icnsa_data$value, frequency = 52)
+
+#Applied Holt-Winters models both  additive and multiplicative
+hw_add <- HoltWinters(icnsa_ts, seasonal = "additive")
+hw_mult <- HoltWinters(icnsa_ts, seasonal = "multiplicative")
+
+#Forecasted next value using both models
+forecast_add <- forecast::forecast(hw_add, h = 1)
+forecast_mult <- forecast::forecast(hw_mult, h = 1)
+
+point_forecast_add <- forecast_add$mean
+point_forecast_mult <- forecast_mult$mean
+
+
+#Printed Point Forecast value of both model
+cat("Forecasted Unemployment using Holt-Winters additive Model:", point_forecast_add, "\n")
+cat("Forecasted Unemployment using Holt-Winters Multiplicative Model:", point_forecast_mult, "\n")
+
+```
+
+
