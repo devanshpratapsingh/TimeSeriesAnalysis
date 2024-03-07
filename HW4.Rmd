@@ -1,0 +1,145 @@
+```{r}
+# Load required libraries
+library(forecast)
+library(readr)
+library(lubridate)
+library(fredr)
+library(zoo)
+library(dplyr)
+library(ggplot2)
+library(imputeTS)
+library(KFAS)
+library(MARSS)
+```
+
+```{r}
+# Set FRED API key
+fredr_set_key('360481124fc765b815de2697f1bf8d62')
+# Load ICNSA data
+icnsa <- fredr(series_id = "ICNSA")
+icnsa$date <- as.Date(icnsa$date)
+```
+
+```{r}
+# Plot original data
+plot(icnsa$date, icnsa$value, type = "l",
+     main = "Original Claims Data",
+     xlab = "Year",
+     ylab = "Number")
+```
+
+```{r}
+# Define COVID start and end date
+covid_start <- as.Date("2020-03-01")
+covid_end <- as.Date("2021-06-30")
+# Plot COVID period data
+plot(icnsa$date, icnsa$value, type = "l",
+     main = "Claims Data with COVID Period",
+     xlab = "Year",
+     ylab = "Number")
+abline(v = as.numeric(covid_start), col = "red", lty = 2)
+abline(v = as.numeric(covid_end), col = "red", lty = 2)
+```
+
+```{r}
+# Filter non-COVID and COVID period data
+non_covid <- icnsa[icnsa$date < covid_start | icnsa$date > covid_end, ]
+covid <- icnsa[icnsa$date >= covid_start & icnsa$date <= covid_end, ]
+```
+
+```{r}
+# Impute missing COVID data using cubic splines
+lambda_values <- seq(0.1, 1.0, by = 0.1)
+for (lam in lambda_values) {
+  spline_fit <- smooth.spline(x = as.numeric(non_covid$date), y = non_covid$value, spar = lam)
+  imputed_values <- predict(spline_fit, x = as.numeric(covid$date))$y
+  covid$value <- imputed_values
+  updated_icnsa <- rbind(non_covid, covid)
+  updated_icnsa <- updated_icnsa %>% arrange(date)
+  plot(updated_icnsa$date, updated_icnsa$value, type = "l", col = "red", lwd = 2,
+       main = paste("Comparison of Time Series (spar =", lam, ")"), xlab = "Year", ylab = "Number")
+  lines(icnsa$date, icnsa$value, col = "blue", lwd = 2)
+  legend("topright", legend = c("Updated", "Original"), col = c("red", "blue"), lty = 1, lwd = 2)
+}
+```
+
+```{r}
+plot(icnsa$date, icnsa$value, type = "l", col = "blue", lwd = 2,
+     main = "Comparison of Time Series (Cubic Splines)", xlab = "Year", ylab = "Number")
+
+# Impute missing COVID data using cubic splines
+lambda_values <- seq(0.1, 1.0, by = 0.1)
+colors <- rainbow(length(lambda_values)) 
+
+for (i in seq_along(lambda_values)) {
+  lam <- lambda_values[i]
+  color <- colors[i]
+  
+  spline_fit <- smooth.spline(x = as.numeric(non_covid$date), y = non_covid$value, spar = lam)
+  imputed_values <- predict(spline_fit, x = as.numeric(covid$date))$y
+  
+  # Plot the imputed values with different colors
+  lines(covid$date, imputed_values, col = color, lwd = 2)
+}
+
+# Add legend in the top left corner
+legend("topleft", legend = c("Original", paste("Lambda =", lambda_values)), col = c("blue", colors), lty = 1, lwd = 2)
+
+```
+
+```{r}
+# Impute missing COVID data using Kalman filter
+icnsa_kalman <- icnsa
+icnsa_kalman$value[icnsa_kalman$date >= covid_start & icnsa_kalman$date <= covid_end] <- NA
+imputed_kalman <- na_kalman(icnsa_kalman$value, smooth = TRUE)
+icnsa_kalman$value <- imputed_kalman
+
+# Plot data with Kalman imputation
+plot(icnsa_kalman$date, icnsa_kalman$value, type = "l",
+     main = "Claims with Imputed Values (Kalman)",
+     xlab = "Year",
+     ylab = "Number")
+```
+
+```{r}
+# Create time series objects
+ts_original <- ts(icnsa$value, frequency = 52)
+ts_kalman <- ts(icnsa_kalman$value, frequency = 52)
+
+# Compare original and Kalman-smoothed series
+plot(ts_kalman, col = "blue", type = "l", lty = 1, ylab = "Value", main = "Time Series Comparison")
+lines(ts_original, col = "black", type = "l", lty = 2)
+legend("topright", legend = c("Kalman", "Original"), col = c("blue", "red"), lty = 1:2)
+
+```
+
+```{r}
+# Fit a structural time series model
+ssm <- StructTS(ts_kalman, type = "BSM")
+smoothed_data <- tsSmooth(ssm)
+residuals_ssm <- residuals(ssm)
+# Plot residuals
+plot(residuals_ssm, main = "Residuals", ylab = "Residuals", xlab = "Time")
+```
+
+```{r}
+# Load IURNSA data
+iurnsa <- fredr(series_id = "IURNSA")
+iurnsa$date <- as.Date(iurnsa$date)
+
+# Merge ICNSA and IURNSA data
+merged_data <- merge(icnsa, iurnsa, by = "date", all.x = TRUE)
+
+# Fit ARIMA model with covariate
+arima_cov <- auto.arima(merged_data$value.x, xreg = merged_data$value.y, seasonal = TRUE)
+
+```
+
+
+```{r}
+# Forecast next week's value
+forecast_next_week <- forecast(arima_cov, h = 1, xreg = tail(merged_data$value.y, 2))
+print(forecast_next_week)
+```
+
+
