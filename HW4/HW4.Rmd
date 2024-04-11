@@ -1,0 +1,235 @@
+---
+title: "Goldi_Time_Series_HW4"
+output:
+  html_document: default
+  pdf_document: default
+date: "2024-04-11"
+---
+##2 Discuss the series you picked, describe the series descriptions, and what part of the economy is describes.
+```{}
+The sectors of Finance and Insurance, Real Estate, Professional Services, and Information represent pivotal elements of the economic landscape, each offering distinct perspectives on sectoral health and trends.
+
+Finance and Insurance: This crucial economic pillar supports transactions and risk management through banking, investments, and insurance services. It mirrors the financial system's robustness and its capacity to back economic endeavors.
+
+Real Estate: This sector, encompassing the trade and leasing of properties, acts as an economic barometer, reflecting broader economic trends through property market dynamics. Fluctuations in real estate prices and leasing rates often precede shifts in the economic cycle.
+
+Professional Services: Encompassing specialized services like legal, accounting, architectural, and consulting, this sector bolsters other businesses' operational efficiency and innovation. Its growth signals a buoyant economy where firms are keen to enhance competitiveness.
+
+Information: Covering the dissemination and processing of information and cultural products, this sector is at the forefront of the knowledge economy, underscored by digitalization and technological advances. It is instrumental in fostering innovation and economic expansion.
+
+Summary: These sectors are integral to decoding the U.S. economy's fabric, each serving critical roles—from underpinning economic transactions and managing risks in Finance and Insurance, acting as an economic health gauge in Real Estate, indicating business vibrancy and forward investment in Professional Services, to driving the shift towards a digital, knowledge-intensive economy in the Information sector. Together, they offer a comprehensive view of economic vitality and prospective directions, essential for informed decision-making and policy formulation.
+```
+
+
+## Time Series Homework 4
+
+```{r}
+
+# Load necessary libraries
+library(readr)
+library(zoo)
+library(vars)
+library(BigVAR)
+library(tseries)
+
+# Read the data
+data <- read_csv("HW4_data.csv")
+
+```
+
+## 3. Empirical Analysis
+
+
+```{r}
+# Convert 'Period' to a year-month format and set it as index
+data$Period <- as.yearmon(data$Period, "%b-%Y")
+
+# Convert numeric columns to numeric type (they might be read as factors or characters)
+data$IUST <- as.numeric(gsub(",", "", data$IUST))
+data$FAIUST <- as.numeric(gsub(",", "", data$FAIUST))
+data$REUST <- as.numeric(gsub(",", "", data$REUST))
+data$PSUST <- as.numeric(gsub(",", "", data$PSUST))
+
+# Perform empirical analysis
+summary(data)
+plot.zoo(data[, -1], plot.type = "single", col = 1:4, main = "Time Series Plot")
+```
+```{r}
+# Stationarity check function for each series in the dataframe
+check_stationarity <- function(data, column_name) {
+  series <- na.omit(data[[column_name]])  # Pre-process to omit NA values
+  
+  # Perform ADF test
+  adf_test <- adf.test(series)
+  
+  # Print the ADF test results
+  cat("ADF Test Results for", column_name, ":\n")
+  cat("Test Statistic:", adf_test$statistic, "\n")
+  cat("P-value:", adf_test$p.value, "\n")
+  cat("Critical Values:\n")
+  for (cv in names(adf_test$critical)) {
+    cat(cv, ":", adf_test$critical[cv], "\n")
+  }
+  
+  # Interpretation based on p-value
+  cat("Result: ")
+  if (adf_test$p.value < 0.05) {
+    cat("Series is stationary because p value is less than 0.05\n\n")
+  } else {
+    cat("Series is non-stationary\n\n")
+  }
+}
+
+```
+
+```{r}
+# Assuming 'data' is loaded and prepared as per the initial script
+columns_to_check <- c("IUST", "FAIUST", "REUST", "PSUST")
+
+# Apply the stationarity check to each column
+for (col in columns_to_check) {
+  check_stationarity(data, col)
+}
+
+```
+
+
+## 4(a). Fit a VAR(1) model 
+
+
+```{r}
+# Check for NAs in each column
+colSums(is.na(data))
+
+data <- na.omit(data)
+
+# Impute missing values
+for(i in 2:ncol(data)) {
+  data[is.na(data[,i]), i] <- mean(data[,i], na.rm = TRUE)
+}
+
+# Time series conversion and VAR model fitting
+data.ts <- ts(data[,-1], start=c(2004, 7), frequency=12) # Adjust start period as necessary
+fit_var1 <- VAR(data.ts, p=1, type="both")
+summary(fit_var1)
+```
+
+## 4(b). VAR(p) model with p > 1.
+
+```{r}
+
+fit_varp <- VAR(data.ts, p=3, type="both")
+summary(fit_varp)
+
+```
+
+
+
+## 5. Compare the two fits and decide with is better.
+
+```{}
+To evaluate and contrast the performances of the VAR(1) model and a VAR(p) model with p>1, we can consider various metrics and features of these models:
+
+Log Likelihood: A higher log likelihood indicates a model that more closely fits the observed data, although this doesn't take into account the complexity of the model.
+
+AIC and BIC: The Akaike Information Criterion and Bayesian Information Criterion adjust for model complexity by penalizing the inclusion of additional parameters. Lower scores on these criteria suggest a more efficient balance between model fit and complexity. The AIC leans towards model fit, whereas the BIC prefers simplicity, especially as the data size grows.
+
+F-statistic and p-value: An elevated F-statistic alongside a p-value below 0.05 typically points to a model's statistical significance, implying that the predictors explain a significant portion of the variability in the response variable.
+
+Adjusted R-squared: This metric adjusts for the number of predictors in the model, with higher values indicating a better fit to the data.
+
+Residual Analysis: Evaluating the residuals for randomness can provide insight into the appropriateness of the model. This involves checking for autocorrelation, heteroskedasticity, and whether the residuals follow a normal distribution.
+
+### VAR(1) Summary:
+
+- Log Likelihood: -7479.327
+- AIC and BIC are not directly provided in the summary, but lower AIC and BIC are generally preferred.
+- The model is statistically significant based on F-statistics and p-values.
+- Adjusted R-squared values are quite high for all equations, suggesting a good fit.
+
+### VAR(p) Summary with \(p>1\):
+
+- Log Likelihood: -7489.036
+- AIC(n) suggests a lag of 3 might be optimal, but for simplicity, you've likely chosen p=1 for the comparison or p=3 as suggested by AIC. It's essential to ensure consistency in your comparison.
+- Like the VAR(1), the VAR(p) model shows significant F-statistics and p-values.
+- Adjusted R-squared values are also high, indicating a good fit.
+
+### Decision:
+
+Without the direct AIC and BIC values for each model in the summaries provided, it's hard to make a definitive comparison based solely on these results. However, you typically would prefer:
+
+- The model with the **lower AIC and BIC** for a balance of goodness of fit and simplicity.
+- The model with **higher log likelihood**, provided it doesn't overfit (which AIC and BIC help address).
+- The model that provides **better diagnostics on residuals**, indicating that the assumptions of the VAR model are better met.
+
+If the AIC and BIC are lower for the VAR(p) model (with (p>1) as suggested by the AIC(n) result), and the residuals do not violate model assumptions, that model might be preferable for forecasting and interpretation purposes. It's also crucial to ensure that the increased complexity of a VAR(p) model with (p>1) is justified by a significantly better fit, as indicated by these criteria.
+
+For a more detailed analysis, we should directly compare the AIC and BIC values, perform residual diagnostics, and consider the practical significance of the variables and lags included in the model.
+```
+
+## 6. Produce a one month a head forecast of the series.
+
+```{r}
+
+
+print("Forecast values from VAR(1):")
+print(fit_var1)
+
+
+print("Forecast values from VAR(p):")
+print(fit_varp)
+
+
+```
+
+
+## 7. Use your fitted model and discuss the Granger causality between the series.
+
+
+```{r}
+
+fit_var1 <- VAR(data.ts, p=1, type="both")
+
+fit_varp <- VAR(data.ts, p=3, type="both")
+
+print(class(fit_var1))
+print(class(fit_varp))
+
+# For VAR(1)
+single_causality_result_var1 <- causality(fit_var1, cause="IUST")
+print("Single Variable Granger Causality Results for VAR(1):")
+print(single_causality_result_var1)
+
+# Testing Granger causality in VAR(1) model
+causality_results_var1 <- causality(fit_var1)
+print("Granger Causality Results for VAR(1):")
+print(causality_results_var1)
+
+# Testing Granger causality in VAR(p) model
+causality_results_varp <- causality(fit_varp)
+print("Granger Causality Results for VAR(p):")
+print(causality_results_varp)
+
+```
+
+## 8. Now use the BigVAR package to fit a sparse VAR model. Describe which sparsity structure you picked and what the results tell you.
+
+
+```{r}
+library(BigVAR)
+
+bigvar_model_p <- constructModel(as.matrix(data.ts), p = 4, struct = "SparseOO", gran = c(25,10), verbose = FALSE, h = 5, IC = TRUE)
+
+# Cross-validation to select optimal hyperparameters
+results_bigvar <- cv.BigVAR(bigvar_model_p)
+
+# Plotting the results of cross-validation and sparsity
+plot(results_bigvar)
+SparsityPlot.BigVAR.results(results_bigvar)
+
+# Forecasting with the BigVAR model
+forecast_bigvar <- predict(results_bigvar, n.ahead = 1)
+print(forecast_bigvar)
+
+```
+
